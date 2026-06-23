@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	core "github.com/tutuck-org/client-core"
 	"github.com/rivo/tview"
+	core "github.com/tutuck-org/client-core"
 )
+
+var Version string
 
 func runTUI(server string, conn io.ReadWriteCloser) {
 	var mu sync.Mutex
