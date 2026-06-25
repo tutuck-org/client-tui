@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/rivo/tview v0.42.0
-	github.com/tutuck-org/client-core v0.0.0-20260623072957-dcfa31dc9b49
+	github.com/tutuck-org/client-core v0.0.0-20260625122316-30a6d5e22f0c
 )
 
 require (
