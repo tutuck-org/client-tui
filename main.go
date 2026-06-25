@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +17,19 @@ import (
 
 var Version string
 
+var identity struct {
+	Name string
+	ID   int
+}
+
+var (
+	colorGreen    = "#5f875f"
+	colorOrange   = "#d7af87"
+	colorViolet   = "#af87d7"
+	colorBlueGray = "#87afd7"
+	colorRed      = "#d78787"
+)
+
 func runTUI(server string, conn io.ReadWriteCloser) {
 	var mu sync.Mutex
 
@@ -29,7 +43,7 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 	messageField := tview.NewInputField().
 		SetLabel("> ").
 		SetFieldWidth(0).
-		SetFieldBackgroundColor(tcell.NewRGBColor(128, 194, 145))
+		SetFieldBackgroundColor(tcell.NewRGBColor(50, 50, 50))
 
 	var history []string
 	historyIndex := -1
@@ -71,11 +85,11 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 				chatView.ScrollTo(row+1, 0)
 			case tcell.KeyRune:
 				switch event.Rune() {
-				case 'k':
+				case 'k', 'p':
 					if row > 0 {
 						chatView.ScrollTo(row-1, 0)
 					}
-				case 'j':
+				case 'j', 'n':
 					chatView.ScrollTo(row+1, 0)
 				}
 			}
@@ -120,7 +134,7 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 		historyIndex = -1
 
 		if _, err := conn.Write([]byte(text)); err != nil {
-			fmt.Fprintf(chatView, "%sWrite error: %s[-]\n", core.ColorRedHex, err)
+			fmt.Fprintf(chatView, "%sWrite error: %s[-]\n", colorRed, err)
 		}
 		chatView.ScrollToEnd()
 		messageField.SetText("")
@@ -139,7 +153,8 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 	app.SetRoot(flex, true).EnableMouse(true)
 
 	go func() {
-		buf := make([]byte, 1024)
+		dec := json.NewDecoder(conn)
+
 		for {
 			if conn == nil {
 				for i := 1; i <= 10; i++ {
@@ -147,20 +162,21 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 					if err == nil {
 						conn = newConn
 						app.QueueUpdateDraw(func() {
-							fmt.Fprintf(chatView, "%sReconnected![-]\n", core.ColorGreenHex)
+							fmt.Fprintf(chatView, "[%s]Reconnected![-]\n", colorGreen)
 							chatView.ScrollToEnd()
+							dec = json.NewDecoder(conn)
 						})
 						break
 					}
 					app.QueueUpdateDraw(func() {
-						fmt.Fprintf(chatView, "%sReconnect attempt %d failed: %v[-]\n", core.ColorRedHex, i, err)
+						fmt.Fprintf(chatView, "[%s]Reconnect attempt %d failed: %v[-]\n", colorRed, i, err)
 						chatView.ScrollToEnd()
 					})
 					time.Sleep(2 * time.Second)
 				}
 				if conn == nil {
 					app.QueueUpdateDraw(func() {
-						fmt.Fprintf(chatView, "%sCannot reconnect after 10 attempts, exiting...[-]\n", core.ColorRedHex)
+						fmt.Fprintf(chatView, "[%s]Cannot reconnect after 10 attempts, exiting...[-]\n", colorRed)
 						chatView.ScrollToEnd()
 					})
 					time.Sleep(1 * time.Second)
@@ -169,10 +185,12 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 				}
 			}
 
-			n, err := conn.Read(buf)
+			var p core.Packet
+
+			err := dec.Decode(&p)
 			if err != nil {
 				app.QueueUpdateDraw(func() {
-					fmt.Fprintf(chatView, "%sServer disconnected, reconnecting...[-]\n", core.ColorRedHex)
+					fmt.Fprintf(chatView, "[%s]Server disconnected, reconnecting...[-]\n", colorRed)
 					chatView.ScrollToEnd()
 				})
 				conn.Close()
@@ -181,9 +199,31 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 				continue
 			}
 
-			msg := strings.TrimSpace(string(buf[:n]))
+			var msg string
+
+			switch p.Type {
+			case "identity":
+				identity.Name = p.Name
+				identity.ID = p.ID
+			case "message":
+				if p.Scope == "dm" {
+					msg = fmt.Sprintf("⟨[%s]%s[-]⟩ [%s]%s[-] -> [%s]%s[-] | %s", colorGreen, p.Time, colorOrange, p.From, colorViolet, p.To, p.Content)
+				}
+				if p.Scope == "global" {
+					msg = fmt.Sprintf("⟨[%s]%s[-]⟩ [%s]%s[-] | %s", colorGreen, p.Time, colorOrange, p.From, p.Content)
+				}
+			case "system":
+				msg = fmt.Sprintf("[%s]%s[-]", colorBlueGray, p.Content)
+			case "error":
+				msg = fmt.Sprintf("[%s]%s[-]", colorRed, p.Content)
+			}
+
 			app.QueueUpdateDraw(func() {
-				fmt.Fprintf(chatView, "%s\n", core.GetColor(msg, true))
+				if msg == "" {
+					return
+				}
+
+				fmt.Fprintf(chatView, msg+"\n")
 				chatView.ScrollToEnd()
 				app.SetFocus(messageField)
 			})
