@@ -8,8 +8,6 @@ A Text-based User Interface client for connecting to any [tutuck server](https:/
 
 TuTuck is a messenger in terminal. Simple. Secure. Works via ssh.
 
-There's also a [CLI version](https://github.com/tutuck-org/client-cli/).
-
 ## How do I try it?
 First, you need a [server](https://github.com/tutuck-org/server/). You can self host it or ask a friend. Download latest server binaries for your OS in [Releases](https://github.com/tutuck-org/server/releases/latest/)
 
