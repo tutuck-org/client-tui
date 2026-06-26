@@ -207,15 +207,17 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 				identity.ID = p.ID
 			case "message":
 				if p.Scope == "dm" {
-					msg = fmt.Sprintf("⟨[%s]%s[-]⟩ [%s]%s[-] -> [%s]%s[-] | %s", colorGreen, p.Time, colorOrange, p.From, colorViolet, p.To, p.Content)
+					msg = fmt.Sprintf("⟨[%s]%s[-]⟩ [%s]%s[-] -> [%s]%s[-] | %s", colorGreen, p.Time, p.FromColor, p.From, p.ToColor, p.To, p.Content)
 				}
 				if p.Scope == "global" {
-					msg = fmt.Sprintf("⟨[%s]%s[-]⟩ [%s]%s[-] | %s", colorGreen, p.Time, colorOrange, p.From, p.Content)
+					msg = fmt.Sprintf("⟨[%s]%s[-]⟩ [%s]%s[-] | %s", colorGreen, p.Time, p.FromColor, p.From, p.Content)
 				}
 			case "system":
-				msg = fmt.Sprintf("[%s]%s[-]", colorBlueGray, p.Content)
+				msg = fmt.Sprintf("%s", p.Content)
 			case "error":
 				msg = fmt.Sprintf("[%s]%s[-]", colorRed, p.Content)
+			case "color":
+				msg = fmt.Sprintf("%2d) [%s]%s[-] (%s)", p.Num, p.ColorHex, p.ColorName, p.ColorHex)
 			}
 
 			app.QueueUpdateDraw(func() {
