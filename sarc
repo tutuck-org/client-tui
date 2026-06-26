@@ -1,0 +1,4 @@
+# sarc - github.com/jvqtil/sar
+dev:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.Version=dev" -o dist/tutuck-client-tui-dev .
+	cd dist && ./tutuck-client-tui-dev :4756
