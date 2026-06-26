@@ -223,7 +223,7 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 					return
 				}
 
-				fmt.Fprintf(chatView, msg+"\n")
+				fmt.Fprintf(chatView, "%s\n", msg)
 				chatView.ScrollToEnd()
 				app.SetFocus(messageField)
 			})
