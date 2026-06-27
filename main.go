@@ -190,12 +190,10 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 			err := dec.Decode(&p)
 			if err != nil {
 				app.QueueUpdateDraw(func() {
-					fmt.Fprintf(chatView, "[%s]Server disconnected, reconnecting...[-]\n", colorRed)
+					fmt.Fprintf(chatView, "[%s]Failed to parse message! Printing raw message to stdout[-]\n", colorRed)
+					fmt.Fprintln(os.Stdout, p)
 					chatView.ScrollToEnd()
 				})
-				conn.Close()
-				conn = nil
-				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 
