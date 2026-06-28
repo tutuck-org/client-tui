@@ -23,12 +23,38 @@ var identity struct {
 }
 
 var (
-	colorGreen    = "#5f875f"
-	colorOrange   = "#d7af87"
-	colorViolet   = "#af87d7"
-	colorBlueGray = "#87afd7"
-	colorRed      = "#d78787"
+	colorGreen = "#5f875f"
+	colorRed   = "#d78787"
 )
+
+func reconnect(
+	app *tview.Application,
+	chatView *tview.TextView,
+	server string,
+) (io.ReadWriteCloser, *json.Decoder, error) {
+	for i := 1; i <= 10; i++ {
+		conn, err := core.ConnectSSH(server)
+		if err == nil {
+			app.QueueUpdateDraw(func() {
+				fmt.Fprintf(chatView, "[%s]Reconnected![-]\n", colorGreen)
+				chatView.ScrollToEnd()
+
+			})
+			return conn, json.NewDecoder(conn), nil
+		}
+		app.QueueUpdateDraw(func() {
+			fmt.Fprintf(chatView, "[%s]Reconnect attempt %d failed: %v[-]\n", colorRed, i, err)
+			chatView.ScrollToEnd()
+		})
+		time.Sleep(2 * time.Second)
+	}
+
+	app.QueueUpdateDraw(func() {
+		fmt.Fprintf(chatView, "[%s]Cannot reconnect after 10 attempts, exiting...[-]\n", colorRed)
+		chatView.ScrollToEnd()
+	})
+	return nil, nil, fmt.Errorf("cannot reconnect")
+}
 
 func runTUI(server string, conn io.ReadWriteCloser) {
 	var mu sync.Mutex
@@ -42,6 +68,7 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 
 	messageField := tview.NewInputField().
 		SetLabel("> ").
+		SetLabelColor(tcell.ColorDarkOrange).
 		SetFieldWidth(0).
 		SetFieldBackgroundColor(tcell.NewRGBColor(50, 50, 50))
 
@@ -156,44 +183,29 @@ func runTUI(server string, conn io.ReadWriteCloser) {
 		dec := json.NewDecoder(conn)
 
 		for {
-			if conn == nil {
-				for i := 1; i <= 10; i++ {
-					newConn, err := core.ConnectSSH(server)
-					if err == nil {
-						conn = newConn
-						app.QueueUpdateDraw(func() {
-							fmt.Fprintf(chatView, "[%s]Reconnected![-]\n", colorGreen)
-							chatView.ScrollToEnd()
-							dec = json.NewDecoder(conn)
-						})
-						break
-					}
-					app.QueueUpdateDraw(func() {
-						fmt.Fprintf(chatView, "[%s]Reconnect attempt %d failed: %v[-]\n", colorRed, i, err)
-						chatView.ScrollToEnd()
-					})
-					time.Sleep(2 * time.Second)
-				}
-				if conn == nil {
-					app.QueueUpdateDraw(func() {
-						fmt.Fprintf(chatView, "[%s]Cannot reconnect after 10 attempts, exiting...[-]\n", colorRed)
-						chatView.ScrollToEnd()
-					})
-					time.Sleep(1 * time.Second)
+			var p core.Packet
+
+			mu.Lock()
+			localDec := dec
+			mu.Unlock()
+			err := localDec.Decode(&p)
+			if err != nil {
+				app.QueueUpdateDraw(func() {
+					fmt.Fprintf(chatView, "[%s]Connection to server lost: %v[-]\n", colorRed, err)
+				})
+				mu.Lock()
+				oldConn := conn
+				mu.Unlock()
+				oldConn.Close()
+				conn, dec, err = reconnect(app, chatView, server)
+				if err != nil {
 					app.Stop()
 					return
 				}
-			}
-
-			var p core.Packet
-
-			err := dec.Decode(&p)
-			if err != nil {
 				app.QueueUpdateDraw(func() {
-					fmt.Fprintf(chatView, "[%s]Failed to parse message! Printing raw message to stdout[-]\n", colorRed)
-					fmt.Fprintln(os.Stdout, p)
-					chatView.ScrollToEnd()
+					app.SetFocus(messageField)
 				})
+
 				continue
 			}
 
